@@ -26,8 +26,10 @@
   let language='bn', symbolPage=0, uppercase=false;
   const v2data={bnWords:window.BanglaFlickWordsBn,enWords:window.BanglaFlickWordsEn,emojiGroups:window.BanglaFlickEmoji,keySounds:{}};
   let nativeMirror=null,nativeSecure=false,nativeNoLearning=false,nativeNumeric=false,nativeAction="newline",nativeActive=false;
+  let nativePending=null,nativeEditId=0,nativeDeferredAction=null;
   let activePanel=null,lastChoice=null,clips=[],favoriteMode=false,handledPhysical=false;
-  const panel=root.querySelector('#bn-panel');let settingsGroup=null;
+  const panel=root.querySelector('#bn-panel');let settingsGroup=null,emojiView=null;
+  const activeGestureTargets=new Set();
   const defaults={suggestions:true,nextWords:true,height:88,theme:'system',letterScale:1,hints:true,vibration:false,sound:false,flickDistance:18,holdDelay:500,learning:false,digits:'auto',startLanguage:'bn',spaceSwitch:true,tabMode:'tab',deleteSpeed:80,doubleTap:350,skin:'',enterAction:'send'};
   let preferences={...defaults},favorites=[],recent=[],personalWords=[],learnedPairs={},redoSnapshot=null,capsLock=false,lastShiftTime=0;
   function restoreState(state){
@@ -58,11 +60,22 @@
     while(bytes()>15000&&Object.keys(learnedPairs).length)delete learnedPairs[Object.keys(learnedPairs)[0]];
     while(bytes()>15000&&personalWords.length)personalWords.pop();
     try{
-      if(!AndroidKeyboard.savePreferences(JSON.stringify(state)))status.textContent='Could not save encrypted settings';
+      const json=JSON.stringify(state);
+      if(window.BanglaNative&&typeof AndroidKeyboard.savePreferencesAsync==='function')AndroidKeyboard.savePreferencesAsync(json);
+      else if(!AndroidKeyboard.savePreferences(json))status.textContent='Could not save encrypted settings';
     }catch{status.textContent='Could not save encrypted settings';}
   }
   const commonBn='আমি তুমি আমার তোমার আমাকে আমাদের আমরা ভালো ভাল আছি আছে আছেন আছো কেমন কি কী কেন কোথায় কোথায় কখন আজ আজকে কাল এখন পরে যাব যাবে যাবো করব করবো করছি করতে হবে হবে না হ্যাঁ ঠিক আছে ধন্যবাদ অনেক একটা একটু বাসায় বাসায় বাড়ি বাড়ি খাই খাব খাবে বাংলাদেশ বাংলা ইংরেজি ফোন কথা বলো বলছি দেখা হবে ভালোবাসি বন্ধু সময় সময় জন্য সঙ্গে সবাই টাকা কাজ পড়া পড়া স্কুল কলেজ বিশ্ববিদ্যালয় বিশ্ববিদ্যালয় সমস্যা নতুন পুরোনো তোমাকে আপনাকে আপনি তারা তাদের নেই চাই চাও পারি পারবে গিয়েছি গিয়েছি এসেছে সবাই আবার দুপুর রাতে সকালে বসে থাকব থাকবো'.split(/\s+/);
   const wordsBn=[...new Set([...commonBn,...v2data.bnWords])];
+  function indexWords(words){const buckets=new Map();for(const word of words){const first=word[0].toLowerCase();if(!buckets.has(first))buckets.set(first,[]);buckets.get(first).push(word);}return buckets;}
+  const wordIndexes={bn:indexWords(wordsBn),en:indexWords(v2data.enWords)};
+  function findWords(prefix,limit,exclude='',both=false){
+    const found=[],seen=new Set(),query=prefix.toLowerCase();
+    const add=word=>{if(word!==exclude&&!seen.has(word)&&word.toLowerCase().startsWith(query)){seen.add(word);found.push(word);}};
+    for(const word of personalWords){if(both||(language==='bn')===/\p{Script=Bengali}/u.test(word))add(word);if(found.length===limit)return found;}
+    for(const lang of both?['bn','en']:[language])for(const word of wordIndexes[lang].get(query[0])??[]){add(word);if(found.length===limit)return found;}
+    return found;
+  }
   function wordRange(){
     const caret=output.selectionStart,text=output.value;
     const before=text.slice(0,caret).match(/[\p{L}\p{M}]+$/u)?.[0]??'';
@@ -73,10 +86,9 @@
     if(nativeSecure||nativeNumeric){const row=root.querySelector("#bn-suggestions");row.replaceChildren();for(let i=0;i<3;i++){const b=document.createElement("button");b.disabled=true;b.textContent="—";row.append(b);}return;}
     const target=root.querySelector('#bn-suggestions');if(!target)return;
     const {prefix,start,end}=wordRange();const normalized=prefix.normalize('NFC').toLowerCase();
-    const list=[...personalWords.filter(w=>language==='bn'?/\p{Script=Bengali}/u.test(w):! /\p{Script=Bengali}/u.test(w)),...(language==='bn'?wordsBn:v2data.enWords)];
     let choices=[];
     if(preferences.suggestions&&normalized){
-      choices=list.filter(w=>w.toLowerCase().startsWith(normalized)&&w!==prefix).slice(0,3);
+      choices=findWords(normalized,3,prefix);
     }
     if(preferences.suggestions&&!normalized&&preferences.nextWords){
       const last=output.value.slice(0,start).trim().match(/[\p{L}\p{M}]+$/u)?.[0]?.toLowerCase();
@@ -127,8 +139,8 @@
     history.splice(undoLength);history.push(current);
     status.textContent='↺ '+previous.letters[next];
   }
-  function openPanel(name){if(nativeSecure&&name==='dictionary'){status.textContent='Dictionary is unavailable in a password field';return;}activePanel=activePanel===name?null:name;if(activePanel==='dictionary')symbolPage=0;favoriteMode=false;render();status.textContent=activePanel==='emoji'?'Hold an emoji to pin it to Favorites':activePanel==='dictionary'?'Dictionary uses the word at the cursor':activePanel==='settings'?'Keyboard settings':'Tap or flick a letter';}
-  function panelButton(label,action,aria=label){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label',aria);tap(b,action);return b;}
+  function openPanel(name){if(nativeSecure&&name==='dictionary'){status.textContent='Dictionary is unavailable in a password field';return;}activePanel=activePanel===name?null:name;if(activePanel==='dictionary')symbolPage=0;favoriteMode=false;panel.scrollTop=0;render();scheduleEmojiViewport();status.textContent=activePanel==='emoji'?'Hold an emoji to pin it to Favorites':activePanel==='dictionary'?'Dictionary uses the word at the cursor':activePanel==='settings'?'Keyboard settings':'Tap or flick a letter';}
+  function panelButton(label,action,aria=label){const b=document.createElement('button');b.type='button';b.textContent=label;b.setAttribute('aria-label',aria);b.addEventListener('click',action);return b;}
   function applyPanel(){
     root.querySelector('.bn-phone').style.setProperty('--bn-key-height',preferences.height+'px');
     const dictionary=activePanel==='dictionary'||activePanel==='feedback';
@@ -139,12 +151,15 @@
     for(const [id,name] of [['#bn-emoji','emoji'],['#bn-dictionary','dictionary'],['#bn-settings','settings']])root.querySelector(id).setAttribute('aria-pressed',String(activePanel===name));
     root.querySelector('#bn-dictionary-drawer').hidden=!dictionary;
     if(dictionary){if(activePanel==='feedback')renderFeedback();else renderInlineDictionary();return;}
-    if(!activePanel)return;
+    if(emojiView){cancelAnimationFrame(emojiView.frame);emojiView=null;}
+    if(!activePanel){panel.replaceChildren();return;}
     grid.hidden=true;symbols.hidden=true;panel.replaceChildren();
     if(activePanel==='emoji')renderEmoji();else if(activePanel==='settings')renderSettings();else renderInfoPage(activePanel);
   }
   function sectionTitle(title){const h=document.createElement('h3');h.textContent=title;panel.append(h);if(activePanel==='settings'){settingsGroup=document.createElement('section');settingsGroup.className='bn-settings-group';settingsGroup.setAttribute('aria-label',title);panel.append(settingsGroup);}}
   const emojiNames=new Map(v2data.emojiGroups.flatMap(g=>g.items));
+  const emojiExact=new Map(),emojiTokens=new Map();
+  for(const [emoji,name] of emojiNames){if(!emojiExact.has(name))emojiExact.set(name,emoji);for(const token of name.split(/[ -]/))if(!emojiTokens.has(token))emojiTokens.set(token,emoji);}
   const emojiKeywords={
     love:'❤️',heart:'❤️',ভালোবাসা:'❤️',ভালোবাসি:'❤️',ভালবাসা:'❤️',happy:'😊',smile:'😊',হাসি:'😊',খুশি:'😊',
     laugh:'😂',lol:'😂',হাহা:'😂',cry:'😭',crying:'😭',কান্না:'😭',sad:'😢',দুঃখ:'😢',angry:'😡',রাগ:'😡',
@@ -156,9 +171,8 @@
     if(!query||[...query].length<2)return null;
     if(Object.prototype.hasOwnProperty.call(emojiKeywords,query))return emojiKeywords[query];
     if(/[a-z]/.test(query)){
-      const exact=[...emojiNames].find(([emoji,name])=>name===query);
-      if(exact)return exact[0];
-      if(query.length>=3)return [...emojiNames].find(([emoji,name])=>name.split(/[ -]/).includes(query))?.[0]??null;
+      if(emojiExact.has(query))return emojiExact.get(query);
+      if(query.length>=3)return emojiTokens.get(query)??null;
     }
     return null;
   }
@@ -171,8 +185,7 @@
     const text=document.createElement('span');text.textContent=current?'Dictionary · '+current:'Dictionary · type a word above';
     header.append(text,panelButton('×',()=>{activePanel=null;render();},'Close dictionary'));drawer.append(header);
     if(!current){const p=document.createElement('p');p.className='bn-settings-note';p.textContent='Keep typing with the keys below. Matching spellings will appear here.';drawer.append(p);return;}
-    const words=[...new Set([...personalWords,...wordsBn,...v2data.enWords])];
-    const matches=words.filter(w=>w.toLowerCase().startsWith(current.toLowerCase())).slice(0,12);
+    const matches=findWords(current,12,'',true);
     const results=document.createElement('div');results.className='bn-dictionary-candidates';
     for(const candidate of matches){
       const b=panelButton(candidate,()=>{
@@ -189,37 +202,64 @@
     const p=document.createElement('p');p.className='bn-settings-note';p.textContent='Spelling candidates and personal words; definitions are not included.';drawer.append(p);
   }
   function toggleFavorite(emoji){favorites=favorites.includes(emoji)?favorites.filter(e=>e!==emoji):[...favorites,emoji].slice(-60);persistPreferences();applyPanel();status.textContent=favorites.includes(emoji)?'Added to Favorites':'Removed from Favorites';}
-  function emojiGrid(items,empty){
-    if(!items.length){const p=document.createElement('p');p.className='bn-empty';p.textContent=empty;panel.append(p);return;}
-    const list=document.createElement('div');list.className='bn-emoji-grid';
-    items.forEach(emoji=>{
-      const b=document.createElement('button');b.type='button';b.textContent=emoji;b.setAttribute('aria-label',(favoriteMode?'Pin or unpin ':'Insert emoji: ')+(emojiNames.get(emoji)??emoji));
-      if(favoriteMode)b.setAttribute('aria-pressed',String(favorites.includes(emoji)));
-      let timer=null,held=false,cancelled=false,x=0,y=0;
-      b.addEventListener('pointerdown',e=>{x=e.clientX;y=e.clientY;held=false;cancelled=false;timer=setTimeout(()=>{held=true;},550);});
-      b.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-x,e.clientY-y)>10){cancelled=true;clearTimeout(timer);}});
-      b.addEventListener('pointercancel',()=>{cancelled=true;clearTimeout(timer);});
-      let ignoreNative=false;
-      function chooseEmoji(){
-        if(cancelled)return;
-        if(held||favoriteMode){toggleFavorite(emoji);return;}
-        const selected=defaultTone(emoji);insert(selected);recent=[selected,...recent.filter(e=>e!==selected)].slice(0,30);persistPreferences();
-        const scroll=panel.scrollTop;applyPanel();panel.scrollTop=scroll;
-      }
-      b.addEventListener('pointerup',e=>{clearTimeout(timer);if(cancelled)return;e.preventDefault();ignoreNative=true;handledPhysical=true;chooseEmoji();});
-      b.addEventListener('contextmenu',e=>e.preventDefault());
-      b.addEventListener('click',()=>{if(ignoreNative){ignoreNative=false;return;}chooseEmoji();});list.append(b);
-    });panel.append(list);
+  function emojiButton(emoji){
+    const b=document.createElement('button');b.type='button';b.textContent=emoji;b.setAttribute('aria-label',(favoriteMode?'Pin or unpin ':'Insert emoji: ')+(emojiNames.get(emoji)??emoji));
+    if(favoriteMode)b.setAttribute('aria-pressed',String(favorites.includes(emoji)));
+    let timer=null,held=false,cancelled=false,x=0,y=0;
+    const cancel=()=>{cancelled=true;clearTimeout(timer);};
+    b.addEventListener('pointerdown',e=>{x=e.clientX;y=e.clientY;held=false;cancelled=false;timer=setTimeout(()=>{held=true;if(!cancelled)toggleFavorite(emoji);},550);});
+    b.addEventListener('pointermove',e=>{if(Math.hypot(e.clientX-x,e.clientY-y)>10)cancel();});
+    b.addEventListener('pointercancel',cancel);b.addEventListener('pointerup',()=>clearTimeout(timer));
+    b.addEventListener('contextmenu',e=>e.preventDefault());
+    b.addEventListener('click',()=>{
+      clearTimeout(timer);if(cancelled||held)return;
+      if(favoriteMode){toggleFavorite(emoji);return;}
+      const selected=defaultTone(emoji);insert(selected);recent=[selected,...recent.filter(e=>e!==selected)].slice(0,30);persistPreferences();
+      refreshEmojiHistory();
+    });return b;
+  }
+  function emojiGrid(items,empty,historyKind=null){
+    if(!items.length&&!historyKind)return;
+    const note=document.createElement('p');note.className='bn-empty';note.textContent=empty??'';note.hidden=!!items.length;if(historyKind)panel.append(note);
+    const block=document.createElement('div');block.className='bn-emoji-window';
+    const layer=document.createElement('div');layer.className='bn-emoji-grid';block.append(layer);panel.append(block);
+    emojiView.lists.push({block,layer,items,note,historyKind,columns:0,from:-1,to:-1});
+  }
+  function scheduleEmojiViewport(){if(!emojiView)return;cancelAnimationFrame(emojiView.frame);emojiView.frame=requestAnimationFrame(updateEmojiViewport);}
+  function updateEmojiViewport(){
+    if(!emojiView||activePanel!=='emoji')return;
+    const columns=Math.max(1,Math.floor((panel.clientWidth-16+3)/45)),stride=47,top=panel.scrollTop,bottom=top+panel.clientHeight;
+    for(const list of emojiView.lists){
+      list.note.hidden=!!list.items.length;list.block.hidden=!list.items.length;
+      const rows=Math.ceil(list.items.length/columns);list.block.style.height=Math.max(0,rows*stride-3)+'px';
+      list.layer.style.gridTemplateColumns='repeat('+columns+',minmax(0,1fr))';
+    }
+    // Batch geometry reads before mounting buttons; avoid a layout for every category.
+    const offsets=emojiView.lists.map(list=>list.block.offsetTop);
+    for(let index=0;index<emojiView.lists.length;index++){
+      const list=emojiView.lists[index],rows=Math.ceil(list.items.length/columns),offset=offsets[index];
+      const from=Math.max(0,Math.min(rows,Math.floor((top-offset)/stride)-2)),to=Math.max(from,Math.min(rows,Math.ceil((bottom-offset)/stride)+2));
+      if(list.from===from&&list.to===to&&list.columns===columns)continue;
+      list.from=from;list.to=to;list.columns=columns;list.layer.style.top=from*stride+'px';
+      const fragment=document.createDocumentFragment();for(let i=from*columns;i<Math.min(to*columns,list.items.length);i++)fragment.append(emojiButton(list.items[i]));list.layer.replaceChildren(fragment);
+    }
+  }
+  function refreshEmojiHistory(){
+    if(!emojiView)return;
+    // Keep the category DOM and scroll position when inserting an emoji.
+    for(const list of emojiView.lists)if(list.historyKind){list.items=list.historyKind==='favorites'?favorites:recent;list.from=-1;}
+    scheduleEmojiViewport();
   }
   function renderEmoji(){
+    emojiView={lists:[],frame:0};
     const actions=document.createElement('div');actions.className='bn-panel-actions';
     actions.append(panelButton(favoriteMode?'Done pinning':'★ Edit favorites',()=>{favoriteMode=!favoriteMode;const scroll=panel.scrollTop;applyPanel();panel.scrollTop=scroll;}));panel.append(actions);
-    sectionTitle('Favorites');emojiGrid(favorites,'Hold an emoji below to pin it here.');
-    sectionTitle('Recent');emojiGrid(recent,'Your recently used emoji will appear here.');
+    sectionTitle('Favorites');emojiGrid(favorites,'Hold an emoji below to pin it here.','favorites');
+    sectionTitle('Recent');emojiGrid(recent,'Your recently used emoji will appear here.','recent');
     for(const group of v2data.emojiGroups){sectionTitle(group.name);emojiGrid(group.items.map(e=>e[0]));}
+    scheduleEmojiViewport();
   }
   function renderSettings(){
-    panel.append(panelButton("Switch keyboard",()=>AndroidKeyboard.action("switchIme")),panelButton("Hide keyboard",()=>AndroidKeyboard.action("hide")));
     const header=document.createElement('div');header.className='bn-settings-header';const title=document.createElement('strong');title.textContent='Settings';header.append(title);panel.append(header);
     const help=panelButton('Help · How to use',()=>openInfoPage('help'),'Help: How to use the keyboard');help.className='bn-help-entry';panel.append(help);
     sectionTitle('Appearance');
@@ -246,6 +286,7 @@
     const enterNote=document.createElement('p');enterNote.className='bn-settings-note';enterNote.textContent='Tap uses the current action. Hold Enter for a new line.';panel.append(enterNote);
     sectionTitle('Emoji');setting('Default skin tone','skin',[['','No default'],['🏻','Light'],['🏼','Medium-light'],['🏽','Medium'],['🏾','Medium-dark'],['🏿','Dark']]);
     panel.append(panelButton('Clear recent emoji',()=>{recent=[];persistPreferences();status.textContent='Recent emoji cleared';}));
+    sectionTitle('Keyboard');panel.append(panelButton('Switch keyboard',()=>requestNativeAction('switchIme')),panelButton('Hide keyboard',()=>requestNativeAction('hide')));
     sectionTitle('About & Legal');
     for(const [page,title] of [['about','About Bangla Modern Flick Keyboard'],['feedback','Feedback / Report a bug'],['terms','Terms & Conditions'],['privacy','Privacy Policy']])panel.append(panelButton(title,()=>openInfoPage(page)));
     sectionTitle('Reset');panel.append(panelButton('Restore default settings',()=>{preferences={...defaults,enterAction:'send'};persistPreferences();render();status.textContent='Default settings restored';}));
@@ -276,7 +317,7 @@
         ['A keyboard built around flicks','Bangla Modern Flick Keyboard uses nine main tiles to type Bangla and English. This Android test keyboard uses a local interface connected to the focused app.'],
         ['Suggestions','Word completion uses a subset of OpenBangla’s dictionary and an English FrequencyWords list. Next-word suggestions use a small phrase model and optional local learning.'],
         ['Emoji and source credits','Emoji characters come from Unicode Emoji 16.0 and use the device’s artwork. Monochrome icons use the preview’s Lucide icons. Source notices are included with the prototype.'],
-        ['Build','Personal prototype · updated 13 November 2026. Android test build 0.1.2.']
+        ['Build','Personal prototype · updated 13 November 2026. Android test build 0.1.3.']
       ],
       terms:[
         ['Personal prototype edition · 13 November 2026','These terms describe this personal testing version of Bangla Modern Flick Keyboard. They do not cover a future published release.'],
@@ -315,15 +356,24 @@
     if(feedbackReport)showReport();
   }
   function setting(label,key,options){
-    const wrap=document.createElement('label');wrap.className='bn-setting';const labelText=document.createElement('span');labelText.className='bn-setting-label';labelText.textContent=label;wrap.append(labelText);
-    const control=document.createElement(options?'select':'input');control.setAttribute('aria-label',label);
-    if(options){for(const [value,text] of options){const option=document.createElement('option');option.value=String(value);option.textContent=text;option.selected=String(preferences[key])===String(value);control.append(option);}}
-    else{control.type='checkbox';control.setAttribute('role','switch');control.checked=!!preferences[key];}
-    control.onchange=()=>{preferences[key]=options?(typeof defaults[key]==='number'?Number(control.value):control.value):control.checked;persistPreferences();applyAppearance();updateSuggestions();setEnterLabel();if(key==='digits')render();};
-    if(options)wrap.append(control);else{const switchWrap=document.createElement('span');switchWrap.className='bn-switch';switchWrap.append(control);wrap.append(switchWrap);}(settingsGroup??panel).append(wrap);
+    const wrap=document.createElement(options?'div':'label');wrap.className='bn-setting';const labelText=document.createElement('span');labelText.className='bn-setting-label';labelText.textContent=label;wrap.append(labelText);
+    const control=document.createElement(options?'button':'input');control.setAttribute('aria-label',label);
+    const changed=()=>{persistPreferences();applyAppearance();updateSuggestions();setEnterLabel();reportHeight();if(key==='digits')render();};
+    if(options){
+      control.type='button';control.className='bn-choice-control';control.textContent=options.find(([value])=>String(value)===String(preferences[key]))?.[1]??'';control.setAttribute('aria-expanded','false');
+      const choices=document.createElement('div');choices.className='bn-choice-options';choices.hidden=true;choices.setAttribute('role','radiogroup');choices.setAttribute('aria-label',label+' options');
+      control.addEventListener('click',()=>{choices.hidden=!choices.hidden;control.setAttribute('aria-expanded',String(!choices.hidden));});
+      control.addEventListener('click',()=>{if(choices.childElementCount)return;for(const [value,text] of options){const option=panelButton(text,()=>{preferences[key]=value;control.textContent=text;choices.hidden=true;control.setAttribute('aria-expanded','false');for(const b of choices.children)b.setAttribute('aria-checked',String(b===option));changed();},label+': '+text);option.setAttribute('role','radio');option.setAttribute('aria-checked',String(String(preferences[key])===String(value)));choices.append(option);}});
+      wrap.append(control,choices);
+    }else{control.type='checkbox';control.setAttribute('role','switch');control.checked=!!preferences[key];control.onchange=()=>{preferences[key]=control.checked;changed();};const switchWrap=document.createElement('span');switchWrap.className='bn-switch';switchWrap.append(control);wrap.append(switchWrap);}
+    (settingsGroup??panel).append(wrap);
   }
   function applyAppearance(){
-    const phone=root.querySelector('.bn-phone');phone.style.colorScheme=preferences.theme==='system'?'light dark':preferences.theme;
+    const phone=root.querySelector('.bn-phone'),dark=preferences.theme==='dark'||preferences.theme==='system'&&matchMedia('(prefers-color-scheme:dark)').matches;
+    phone.style.colorScheme=dark?'dark':'light';
+    // Explicit colors also work on OEM WebViews without CSS light-dark() support.
+    const colors=dark?['#292929','#646464','#fafafa','#e0e0e0','#414141','#325b50']:['#e8e9ed','#fff','#17212a','#505c68','#d3d7dc','#c3e9de'];
+    ['bg','key','text','sub','action','highlight'].forEach((name,index)=>phone.style.setProperty('--bn-'+name,colors[index]));
     phone.style.setProperty('--bn-key-height',preferences.height+'px');phone.style.setProperty('--bn-letter-scale',preferences.letterScale);
     phone.classList.toggle('bn-hide-hints',!preferences.hints);
   }
@@ -376,9 +426,9 @@
     button.addEventListener('contextmenu',event=>event.preventDefault());
   }
   const graphemes=new Intl.Segmenter('bn',{granularity:'grapheme'});
-  function deleteOne(){if(!output.value.length&&nativeActive){AndroidKeyboard.action("delete");return;}let{start,end}=snapshot();if(start===end&&start>0){const last=[...graphemes.segment(output.value.slice(0,start))].at(-1);start=last.index;}if(start!==end){save();replace('',start,end);status.textContent='Deleted';}}
+  function deleteOne(){if(!output.value.length&&nativeActive){requestNativeAction('delete');return;}let{start,end}=snapshot();if(start===end&&start>0){const last=[...graphemes.segment(output.value.slice(0,start))].at(-1);start=last.index;}if(start!==end){save();replace('',start,end);status.textContent='Deleted';}}
   function setEnterLabel(){const action=nativeAction,button=root.querySelector('#bn-enter');button.textContent={send:'↵',search:'⌕',done:'✓',next:'⇥',go:'↵',newline:'↵'}[action];button.setAttribute('aria-label',({send:'Send',search:'Search',done:'Done',next:'Next',go:'Go',newline:'New line'}[action])+'. Hold for new line.');}
-  function enterAction(){if(!nativeActive)return;AndroidKeyboard.action("editor");return;
+  function enterAction(){if(!nativeActive)return;requestNativeAction('editor');return;
     const action=preferences.enterAction??'send';if(action==='newline'){insert('\n');return;}
     if(action==='done'){output.blur();status.textContent='Done';return;}
     const text=output.value;if(!text.trim())return;
@@ -422,13 +472,15 @@
     clips.forEach(text=>{const button=panelButton(text.length>80?text.slice(0,80)+'…':text,()=>insert(text),'Paste saved clip: '+text.slice(0,60));button.className='bn-clip';panel.append(button);});
   }
   function setupExtras(){
-    root.addEventListener('pointerdown',()=>{handledPhysical=false;},true);
+    root.addEventListener('pointerdown',event=>{handledPhysical=false;const button=event.target.closest('button');if(button)activeGestureTargets.add(button);},true);
+    for(const name of ['pointerup','pointercancel','lostpointercapture'])root.addEventListener(name,event=>{const button=event.target.closest('button');if(button)activeGestureTargets.delete(button);},true);
+    panel.addEventListener('scroll',scheduleEmojiViewport,{passive:true});
     root.addEventListener('click',event=>{
       if(handledPhysical&&(event.pointerType||event.sourceCapabilities?.firesTouchEvents)){
         event.preventDefault();event.stopImmediatePropagation();handledPhysical=false;
       }
     },true);
-    function playSystemClick(button){AndroidKeyboard.sound(button.id==='bn-delete'?'delete':'click');}
+    function playSystemClick(button){AndroidKeyboard.sound(button.id==='bn-delete'?'delete':button.classList.contains('bn-key')||button.closest('#bn-numbers')?'click':'modifier');}
     root.addEventListener('pointerup',event=>{
       if(!event.target.closest('button'))return;
       if(preferences.vibration)AndroidKeyboard.haptic();
@@ -450,7 +502,7 @@
   const history=[];
   const snapshot=()=>({text:output.value,start:output.selectionStart,end:output.selectionEnd});
   function save(){redoSnapshot=null;setUndoLabel();history.push(snapshot());if(history.length>100)history.shift();}
-  function replace(text,start=output.selectionStart,end=output.selectionEnd){output.value=output.value.slice(0,start)+text+output.value.slice(end);output.setSelectionRange(start+text.length,start+text.length);syncJoin();learnBoundary();updateSuggestions();lastChoice=null;updateCycle();nativeSync();}
+  function replace(text,start=output.selectionStart,end=output.selectionEnd){output.value=output.value.slice(0,start)+text+output.value.slice(end);output.setSelectionRange(start+text.length,start+text.length);nativeSync();syncJoin();learnBoundary();updateSuggestions();lastChoice=null;updateCycle();}
   function consonantEnd(text){return /(?:[ক-হড়ঢ়য়]|[ডঢয]়)$/.test(text);}
   function syncJoin(){
     const before=output.value.slice(0,output.selectionStart);
@@ -473,14 +525,32 @@
     status.textContent=letter==='্'?'যুক্ত প্রস্তুত — এবার পরের ব্যঞ্জনবর্ণ চাপুন':letter===' '?'Space inserted':letter==='\n'?'New line':text?letter+' → '+text:'অ → inherent vowel';
     if(language==='en'&&uppercase&&!capsLock&&/^[A-Z]$/.test(letter)){uppercase=false;renderLetters();}
   }
-  function direction(dx,dy){return Math.hypot(dx,dy)<18?0:Math.abs(dx)>Math.abs(dy)?(dx<0?1:3):(dy<0?2:4);}
+  const flickGuide=document.createElement('div');flickGuide.className='bn-flick-guide';flickGuide.hidden=true;flickGuide.setAttribute('aria-hidden','true');root.querySelector('.bn-phone').append(flickGuide);
+  let guideOwner=null,guideLetters=[],guideBounds=null,guideIndex=-1;
+  function showFlickGuide(key,letters){
+    guideBounds=key.getBoundingClientRect();guideOwner=key;guideLetters=letters;guideIndex=-1;flickGuide.replaceChildren(document.createElement('span'));updateFlickGuide(0);
+  }
+  function updateFlickGuide(index){
+    if(!guideOwner||index===guideIndex)return;guideIndex=index;
+    if(index===0||guideLetters[index]===undefined){flickGuide.hidden=true;return;}
+    const box=guideBounds;let width=Math.max(54,Math.min(98,box.width*1.15)),height=Math.max(54,Math.min(78,box.height*1.12)),x=box.x+box.width/2-width/2,y=box.y+box.height/2-height/2;
+    if(index===1){const tip=box.left+12;width=Math.min(width,tip-3);x=tip-width;}
+    if(index===3){x=box.right-12;width=Math.min(width,innerWidth-x-3);}
+    if(index===2){const tip=box.top+10;height=Math.min(height,tip-3);y=tip-height;}
+    if(index===4){y=box.bottom-10;height=Math.min(height,innerHeight-y-3);}
+    flickGuide.style.left=Math.max(3,Math.min(innerWidth-width-3,x))+'px';flickGuide.style.top=Math.max(3,Math.min(innerHeight-height-3,y))+'px';flickGuide.style.width=width+'px';flickGuide.style.height=height+'px';flickGuide.style.fontSize=Math.min(36,(width-16)*.75,(height-12)*.65)+'px';flickGuide.dataset.direction=positions[index];
+    const choice=flickGuide.firstChild;choice.className='bn-flick-selected';choice.dataset.index=index;choice.textContent=guideLetters[index];flickGuide.hidden=false;
+  }
+  function hideFlickGuide(key){if(guideOwner===key){guideOwner=null;flickGuide.hidden=true;}}
+  function direction(dx,dy){return Math.hypot(dx,dy)<preferences.flickDistance?0:Math.abs(dx)>Math.abs(dy)?(dx<0?1:3):(dy<0?2:4);}
   // One pointer gesture produces one action. Native click remains available to keyboards and assistive tools.
-  function gesture(button,action,{preview,hold=false}={}){
+  function gesture(button,action,{preview,start,hold=false}={}){
     let active=null,timer=null,ignoreClick=false;
-    const reset=()=>{clearTimeout(timer);active=null;button.querySelectorAll('.bn-active').forEach(x=>x.classList.remove('bn-active'));};
+    const reset=()=>{clearTimeout(timer);active=null;hideFlickGuide(button);button.querySelectorAll('.bn-active').forEach(x=>x.classList.remove('bn-active'));};
     button.addEventListener('pointerdown',e=>{
       if(e.button!==0||active)return;
       e.preventDefault();ignoreClick=false;active={id:e.pointerId,x:e.clientX,y:e.clientY,start:performance.now()};button.setPointerCapture(e.pointerId);
+      if(start)start();
       if(hold)timer=setTimeout(()=>{if(active)status.textContent='Separate vowel · release or swipe to choose';},preferences.holdDelay);
     });
     button.addEventListener('pointermove',e=>{if(active&&active.id===e.pointerId&&preview)preview(e.clientX-active.x,e.clientY-active.y,performance.now()-active.start);});
@@ -507,7 +577,8 @@
     letters.forEach((letter,i)=>{const span=document.createElement('span');span.className='bn-'+positions[i];span.lang=language;span.textContent=letter;key.append(span);});
     gesture(key,d=>insertChoice(letters,direction(d.dx,d.dy),vowel&&(d.held||d.shift)),{
       hold:vowel,
-      preview:(dx,dy,elapsed)=>{const i=direction(dx,dy);[...key.children].forEach((s,n)=>s.classList.toggle('bn-active',n===i));status.textContent=letters[i]===undefined?'No letter in this direction':letters[i]+(Object.hasOwn(signs,letters[i])&&elapsed>=preferences.holdDelay?' · separate vowel':'');}
+      start:()=>showFlickGuide(key,letters),
+      preview:(dx,dy,elapsed)=>{const i=direction(dx,dy);updateFlickGuide(i);[...key.children].forEach((s,n)=>s.classList.toggle('bn-active',n===i));status.textContent=letters[i]===undefined?'No letter in this direction':letters[i]+(Object.hasOwn(signs,letters[i])&&elapsed>=preferences.holdDelay?' · separate vowel':'');}
     });
     key.addEventListener('keydown',e=>{
       const i={ArrowLeft:1,ArrowUp:2,ArrowRight:3,ArrowDown:4}[e.key];
@@ -516,7 +587,9 @@
     });
     return key;
   }
+  let renderedLettersKey='',renderedSymbolKey='',renderedNumberKey='';
   function renderLetters(){
+    const key=[language,uppercase,capsLock,nativeNumeric].join(':');if(renderedLettersKey===key)return;renderedLettersKey=key;
     if(nativeNumeric){grid.replaceChildren();for(const digit of "123456789")grid.append(tile([digit]));return;}
     grid.replaceChildren();
     const groups=language==='bn'?bnGroups:enGroups.map(a=>a.map(x=>uppercase?x.toUpperCase():x));
@@ -528,13 +601,13 @@
     grid.setAttribute('aria-label',language==='bn'?'Nine main letter tiles':'Nine English tiles');
   }
   function render(){
-    renderLetters();symbols.replaceChildren();
-    if(symbolPage)symbolGroups(symbolPage).forEach(group=>symbols.append(tile(group,true)));
+    renderLetters();
+    const symbolKey=language+':'+symbolPage;if(renderedSymbolKey!==symbolKey){renderedSymbolKey=symbolKey;symbols.replaceChildren();if(symbolPage)symbolGroups(symbolPage).forEach(group=>symbols.append(tile(group,true)));}
     symbols.setAttribute('aria-label','Symbols page '+symbolPage);
-    const numbers=root.querySelector('#bn-numbers');numbers.replaceChildren();numbers.lang=language;numbers.setAttribute('aria-label',language==='bn'?'Bengali numbers':'English numbers');
-    for(const digit of language==='bn'&&!nativeNumeric&&preferences.digits!=='en'?'১২৩৪৫৬৭৮৯০':'1234567890'){
+    const numbers=root.querySelector('#bn-numbers');numbers.lang=language;numbers.setAttribute('aria-label',language==='bn'?'Bengali numbers':'English numbers');
+    const numberKey=[language,nativeNumeric,preferences.digits].join(':');if(renderedNumberKey!==numberKey){renderedNumberKey=numberKey;numbers.replaceChildren();for(const digit of language==='bn'&&!nativeNumeric&&preferences.digits!=='en'?'১২৩৪৫৬৭৮৯০':'1234567890'){
       const button=document.createElement('button');button.type='button';button.textContent=digit;button.setAttribute('aria-label','Insert '+digit);tap(button,()=>insert(digit));numbers.append(button);
-    }
+    }}
     grid.hidden=symbolPage!==0;symbols.hidden=symbolPage===0;applyPanel();
     more.setAttribute('aria-pressed',String(symbolPage!==0));more.setAttribute('aria-label',symbolPage===2?'Return to main keys':'Show symbols page '+(symbolPage+1));
     more.replaceChildren(document.createTextNode(language==='bn'?'চিহ্ন':'?#+'));
@@ -570,33 +643,54 @@
   function receiveHost(state){
     if(!state||typeof state.text!=='string')return;
     const newSession=!nativeMirror||nativeMirror.session!==state.session;
+    if(nativePending&&!newSession&&state.active&&state.readable!==false&&state.secure===nativeMirror.secure&&state.kind===nativeMirror.kind){
+      if(state.text===nativePending.text&&state.start===nativePending.start&&state.end===nativePending.end){acknowledgeEdit({...state,requestId:nativePending.requestId,requestSession:nativePending.session});return;}
+      if(state.text===nativeMirror.text&&state.start===nativeMirror.start&&state.end===nativeMirror.end){nativeMirror={...nativeMirror,...state};return;}
+    }
+    if(nativePending){nativePending=null;nativeDeferredAction=null;}
+    const previous=nativeMirror;
+    const contentChanged=newSession||output.value!==state.text||output.selectionStart!==state.start||output.selectionEnd!==state.end;
+    const layoutChanged=newSession||!previous||previous.kind!==state.kind||previous.secure!==state.secure||previous.maxHeight!==state.maxHeight;
     nativeMirror={...state};nativeActive=!!state.active&&state.readable!==false;nativeSecure=!!state.secure;nativeNoLearning=!!state.noLearning;nativeAction=state.action||'newline';nativeNumeric=state.kind==='number'||state.kind==='phone';
     output.value=state.text;output.setSelectionRange(Math.min(state.start,state.text.length),Math.min(state.end,state.text.length));
-    history.length=0;redoSnapshot=null;lastChoice=null;capsLock=false;uppercase=false;
+    if(contentChanged){history.length=0;redoSnapshot=null;lastChoice=null;}
     if(newSession){
-      for(const button of root.querySelectorAll('button'))button.dispatchEvent(new PointerEvent('pointercancel',{bubbles:false}));
+      nativePending=null;nativeDeferredAction=null;
+      for(const button of activeGestureTargets)button.dispatchEvent(new PointerEvent('pointercancel',{bubbles:false}));activeGestureTargets.clear();
+      capsLock=false;uppercase=false;
       symbolPage=0;activePanel=null;feedbackReport='';lastLearnedText='';panel.replaceChildren();root.querySelector('#bn-dictionary-drawer').replaceChildren();status.textContent='Tap or flick a letter';
     }
     if(state.maxHeight)root.querySelector('.bn-phone').style.setProperty('--host-max-height',state.maxHeight+'px');
-    render();reportHeight();
+    if(layoutChanged)render();else if(contentChanged){syncJoin();updateSuggestions();updateCycle();setUndoLabel();}
+    setEnterLabel();if(layoutChanged)reportHeight();
   }
-  function nativeSync(){
-    if(!nativeMirror||!nativeActive)return;
-    const request={session:nativeMirror.session,revision:nativeMirror.revision,before:nativeMirror.text,text:output.value,start:output.selectionStart,end:output.selectionEnd};
-    if(request.text===nativeMirror.text&&request.start===nativeMirror.start&&request.end===nativeMirror.end)return;
+  function requestNativeAction(action){if(!nativeActive){AndroidKeyboard.action(action);return;}nativeDeferredAction=action;nativeSync();}
+  function nativeSync(retries=0){
+    if(!nativeMirror||!nativeActive||nativePending)return;
+    const request={session:nativeMirror.session,revision:nativeMirror.revision,before:nativeMirror.text,text:output.value,start:output.selectionStart,end:output.selectionEnd,requestId:++nativeEditId,retries};
+    if(request.text===nativeMirror.text&&request.start===nativeMirror.start&&request.end===nativeMirror.end){if(nativeDeferredAction){const action=nativeDeferredAction;nativeDeferredAction=null;AndroidKeyboard.action(action);}return;}
     try{
+      if(typeof AndroidKeyboard.submitEdit==='function'){const raw=JSON.stringify(request);if(raw.length>65536){status.textContent='Editor context too large; reopen the keyboard';return;}nativePending=request;AndroidKeyboard.submitEdit(raw);return;}
       const response=JSON.parse(AndroidKeyboard.edit(JSON.stringify(request)));
-      if(response.ok){nativeMirror={...nativeMirror,...response,text:request.text,start:request.start,end:request.end};}
+      if(response.ok){nativeMirror={...nativeMirror,...response,text:request.text,start:request.start,end:request.end};nativeSync();}
       else receiveHost(response);
-    }catch{status.textContent='The app is not ready for keyboard input';}
+    }catch{nativePending=null;nativeDeferredAction=null;status.textContent='The app is not ready for keyboard input';}
   }
-  let heightFrame=0;
+  function acknowledgeEdit(response){
+    const pending=nativePending;if(!pending||response.requestId!==pending.requestId||response.requestSession!==pending.session)return;
+    nativePending=null;
+    if(response.ok&&response.session===pending.session){nativeMirror={...nativeMirror,...response,text:pending.text,start:pending.start,end:pending.end};nativeSync();return;}
+    if(response.session===pending.session&&response.text===nativeMirror.text&&response.start===nativeMirror.start&&response.end===nativeMirror.end&&response.active&&response.readable!==false&&pending.retries<1){nativeMirror={...nativeMirror,...response};nativeSync(pending.retries+1);return;}
+    nativeDeferredAction=null;receiveHost(response);
+  }
+  let heightFrame=0,lastReportedHeight=0;
   function reportHeight(){
-    cancelAnimationFrame(heightFrame);heightFrame=requestAnimationFrame(()=>AndroidKeyboard.height(Math.ceil(root.getBoundingClientRect().height)));
+    cancelAnimationFrame(heightFrame);heightFrame=requestAnimationFrame(()=>{const height=Math.ceil(root.getBoundingClientRect().height);if(height!==lastReportedHeight){lastReportedHeight=height;AndroidKeyboard.height(height);}});
   }
   new ResizeObserver(reportHeight).observe(root);
-  window.BanglaNative={receive:receiveHost};
-  window.addEventListener('resize',reportHeight);
+  window.BanglaNative={receive:receiveHost,acknowledge:acknowledgeEdit,preferenceSaveFailed(){status.textContent='Could not save settings';if(activePanel==='settings'){let note=panel.querySelector('.bn-save-error');if(!note){note=document.createElement('p');note.className='bn-save-error';panel.prepend(note);}note.textContent='Could not save settings. Please try again.';}}};
+  window.addEventListener('resize',()=>{reportHeight();scheduleEmojiViewport();});
+  matchMedia('(prefers-color-scheme:dark)').addEventListener('change',applyAppearance);
 
   setupExtras();render();
 })();

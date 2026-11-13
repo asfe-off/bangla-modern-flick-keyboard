@@ -18,7 +18,7 @@ public final class SetupActivity extends Activity {
         layout.setPadding(dp(24),dp(24),dp(24),dp(24)); layout.setBackgroundColor(Color.rgb(242,245,243));
         layout.setOnApplyWindowInsetsListener((v,insets)->{v.setPadding(dp(24),dp(24)+insets.getSystemWindowInsetTop(),dp(24),dp(24)+insets.getSystemWindowInsetBottom());return insets;});
         TextView title = new TextView(this);title.setText("Bangla Modern Flick Keyboard");title.setTextSize(28);title.setTextColor(Color.rgb(30,43,38));layout.addView(title);
-        TextView intro = new TextView(this);intro.setText("Personal test build · 0.1.2\n\nEnable the keyboard, select it, then type in any app. Use ⚙ on the keyboard for Settings and Help. The launcher icon is a placeholder.");intro.setTextSize(16);intro.setPadding(0,dp(16),0,dp(20));layout.addView(intro);
+        TextView intro = new TextView(this);intro.setText("Personal test build · 0.1.3\n\nEnable the keyboard, select it, then type in any app. Use ⚙ on the keyboard for Settings and Help. The launcher icon is a placeholder.");intro.setTextSize(16);intro.setPadding(0,dp(16),0,dp(20));layout.addView(intro);
         button(layout,"1 · Enable keyboard",v->startActivity(new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)));
         button(layout,"2 · Select keyboard",v->((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showInputMethodPicker());
         TextView note=new TextView(this);note.setText("Android shows its standard keyboard warning when you enable an input method. This build has no Internet permission.\n\nTry Bangla and English here:");note.setPadding(0,dp(20),0,dp(8));layout.addView(note);

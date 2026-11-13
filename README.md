@@ -8,19 +8,27 @@ An offline Android input-method service using the approved nine-tile Bengali/Eng
 
 ## Download the Android test app
 
-[**Download the APK for Android 8 or later**](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.2-public-test.apk)
+[**Download the APK for Android 8 or later**](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.3-public-test.apk)
 
 Open this link on your phone, download the APK, and open it from Downloads. If Android asks, allow your browser or Files app to install this app, then tap Install. Open **Bangla Modern Flick Keyboard**, tap **Enable keyboard**, then **Select keyboard**. The public test APK uses Android system sounds; it does not include Apple recordings.
 
 ## Install on your phone
 
-1. Transfer `Bangla-Modern-Flick-Keyboard-0.1.2-public-test.apk` to your phone and open it. Install over the previous test APK to retain your settings. If Android asks, allow this installer/browser to install this APK.
+1. Transfer `Bangla-Modern-Flick-Keyboard-0.1.3-public-test.apk` to your phone and open it. Install over the previous test APK to retain your settings. If Android asks, allow this installer/browser to install this APK.
 2. Open **Bangla Modern Flick Keyboard** once. The nine-square launcher icon is a placeholder.
 3. Tap **Enable keyboard** and enable Bangla Modern Flick Keyboard in Android's keyboard settings. Android displays its standard input-method warning.
 4. Tap **Select keyboard** and select **Bangla Modern Flick Keyboard**.
 5. Type in the app's test box, then try a notes app and your chat app. Settings and Help are available from ⚙ in the keyboard; you do not need to revisit the launcher for normal use.
 
 Use your phone's keyboard-picker button, or **Settings → Switch keyboard**, to switch back. The app has no Internet permission, does not require an account, and does not request contacts, microphone or storage access. Vibration uses Android's normal VIBRATE permission.
+
+## Changes in 0.1.3
+
+Settings choices open inside the keyboard instead of using Android WebView dropdown dialogs. You can scroll from buttons and option rows. Emoji rows load as you scroll, and inserting an emoji updates history without rebuilding the entire picker. Host text refreshes preserve the current page and scroll position. Preference writes run off the immediate input path. Fast typing uses a single in-flight asynchronous editor request and coalesces queued changes; Send waits for all queued text to be committed. Android 12 and later use one bounded surrounding-text query instead of three separate queries when the editor supports it. System sound playback, opaque drawing, page scroll locking, compatibility colors and renderer recovery are updated; sound and the reported intermittent blank display still need confirmation on the affected phone.
+
+Slide from a main or symbol tile to show the selected letter in an enlarged, pointed side bubble. The bubble appears on the left, right, top or bottom, and the original tile remains the anchor. Release to enter the letter; sliding back to the centre restores the middle choice. The preview follows the directional-guide behavior described in [SoftBank's flick-input manual](https://www.softbank.jp/mobile/support/manual/smartphone/arrows-u/detail/32360/); the Bangla mappings are this project's design.
+
+For sound, enable **Settings → Touch & feedback → System key sounds** and use normal sound mode. Playback respects silent/vibrate mode. This public build uses Android system sounds, not Apple recordings.
 
 ## What is in this build
 
@@ -40,7 +48,7 @@ The APK is compiled, aligned and signed with a **local test key**. It is install
 
 Verified here: Java compilation, resources/manifest packaging, APK signature, 5,018 editor-delta cases, and the packaged UI against a simulated Android editor (conjuncts, selections, deletion, Undo/Redo, cycling, emoji, numeric and password fields, native actions, cleanup, and compact phone sizes).
 
-The user reported that the previous 0.1.1 build works on their phone. No Android device was connected for this audit, so the updated 0.1.2 build and its Android Keystore storage have **not been exercised on a physical phone by these automated checks**. Actual WebView/IME lifecycle, cursor movement in third-party chat apps, app action buttons, rotation, navigation-bar insets and sound latency still need broader phone testing.
+The user reported that the previous 0.1.1 build works on their phone. No Android device was connected for this audit, so the updated 0.1.3 build and its Android Keystore storage have **not been exercised on a physical phone by these automated checks**. Actual WebView/IME lifecycle, cursor movement in third-party chat apps, app action buttons, rotation, navigation-bar insets and sound latency still need broader phone testing.
 
 This is a WebView-backed InputMethodService, not a browser page shown over another app. It communicates with the active editor through Android InputConnection. Host snapshots are checked before replacement, and edits from a stale field/session are rejected. If the app changes text externally, the keyboard refreshes its context. Context and Undo are cleared when the keyboard is hidden or the field changes. Huge unreadable selections are rejected rather than replaced blindly.
 

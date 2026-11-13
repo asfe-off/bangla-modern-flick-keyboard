@@ -1,6 +1,12 @@
-# Security and testing status — 0.1.2-test
+# Security and testing status — 0.1.3-test
 
 Reviewed 13 November 2026. This is a developer hardening pass and automated test report, not an independent security audit or a guarantee that no vulnerabilities remain. The previous build worked on the user's phone; this updated build has not yet been tested on a connected Android device.
+
+## 0.1.3 follow-up
+
+The user reported lag, nonworking dropdowns, difficult Settings scrolling, missing sound and intermittent invisible keyboard graphics in 0.1.2 on an Oppo phone. This update replaces native HTML select popups with in-panel choices, permits native scrolling over controls, mounts only nearby emoji rows and preserves mounted pages on editor refreshes. It adds an opaque WebView, document-scroll reset, explicit theme colors, visual refresh callbacks and recreation after renderer exit. The intermittent blank display and audible playback cannot be certified fixed without testing the updated APK on that phone.
+
+Preference changes use a single background writer so encryption/disk writes do not block emoji insertion; initial legacy migration still uses the synchronous save. A queued preference change can be lost if Android kills the process before it finishes. Stored content remains encrypted under the existing key/schema. The existing 5,018 editor tests and 163 authenticated-encryption tests pass. Additional touch tests cover Settings selection, scrolling from a setting, async save dispatch, sound routing, complete emoji scroll reachability, insertion/history, stable page updates, completion ranking and all four directions of the flick guide. These use an emulated browser editor, not Android hardware. A slow-editor test also covers rapid queued typing, edit coalescing, Send-after-flush, deletion/Undo order, one bounded stale-context retry, field-switch isolation and external-text conflict handling. Native requests retain session/revision/context checks, with request IDs and source-session IDs on asynchronous acknowledgements.
 
 ## Findings addressed
 
