@@ -21,7 +21,7 @@ $manifestFile=Join-Path $OutDir 'AndroidManifest.xml'
 $manifest=[System.IO.File]::ReadAllText((Join-Path $projectDir 'app/src/main/AndroidManifest.xml')).Replace('<manifest xmlns:android=', '<manifest package="dev.banglaflick.test" xmlns:android=')
 [System.IO.File]::WriteAllText($manifestFile,$manifest,[System.Text.UTF8Encoding]::new($false))
 Invoke-Checked $aapt @('compile','--dir',(Join-Path $projectDir 'app/src/main/res'),'-o',(Join-Path $OutDir 'resources.zip'))
-Invoke-Checked $aapt @('link','--manifest',$manifestFile,'-I',$AndroidJar,'--java',$generatedDir,'--auto-add-overlay','--min-sdk-version','26','--target-sdk-version','36','--version-code','5','--version-name','0.1.4-display-test','-A',(Join-Path $projectDir 'app/src/main/assets'),'-o',(Join-Path $OutDir 'resources.apk'),(Join-Path $OutDir 'resources.zip'))
+Invoke-Checked $aapt @('link','--manifest',$manifestFile,'-I',$AndroidJar,'--java',$generatedDir,'--auto-add-overlay','--min-sdk-version','26','--target-sdk-version','36','--version-code','6','--version-name','0.1.5','-A',(Join-Path $projectDir 'app/src/main/assets'),'-o',(Join-Path $OutDir 'resources.apk'),(Join-Path $OutDir 'resources.zip'))
 $sourcePaths=@(Get-ChildItem -LiteralPath (Join-Path $projectDir 'app/src/main/java'),$generatedDir -Filter '*.java' -Recurse | ForEach-Object { '"'+$_.FullName.Replace('\','/')+'"' })
 $sourceFile=Join-Path $OutDir 'sources.txt'
 [System.IO.File]::WriteAllLines($sourceFile,$sourcePaths,[System.Text.UTF8Encoding]::new($false))
@@ -40,7 +40,7 @@ $keystore=if($SigningKeystore){$SigningKeystore}else{Join-Path $keys 'local-test
 if(-not (Test-Path -LiteralPath $keystore)){
     Invoke-Checked (Join-Path $JavaHome 'bin/keytool.exe') @('-genkeypair','-keystore',$keystore,'-storetype','PKCS12','-storepass','android','-keypass','android','-alias','banglaflick-test','-keyalg','RSA','-keysize','2048','-validity','10000','-dname','CN=Bangla Flick Local Test,O=Personal Development,C=BD')
 }
-$apk=Join-Path $OutDir 'Bangla-Modern-Flick-Keyboard-0.1.4-display-test.apk'
+$apk=Join-Path $OutDir 'Bangla-Modern-Flick-Keyboard-0.1.5.apk'
 Invoke-Checked (Join-Path $JavaHome 'bin/java.exe') @('-jar',(Join-Path $BuildTools 'lib/apksigner.jar'),'sign','--ks',$keystore,'--ks-pass','pass:android','--key-pass','pass:android','--ks-key-alias','banglaflick-test','--out',$apk,$aligned)
 Invoke-Checked (Join-Path $JavaHome 'bin/java.exe') @('-jar',(Join-Path $BuildTools 'lib/apksigner.jar'),'verify','--verbose',$apk)
 Invoke-Checked (Join-Path $BuildTools 'zipalign.exe') @('-c','4',$apk)

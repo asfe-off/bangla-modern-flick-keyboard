@@ -64,3 +64,9 @@ Android documents that drawing faults can appear as invisible or incorrect eleme
 Chromium specifically discourages software drawing for WebView because it is slower, uses more memory and has compatibility/maintenance limitations. Consequently this build does not apply `LAYER_TYPE_SOFTWARE` or disable hardware acceleration globally. [Chromium WebView software drawing guidance](https://chromium.googlesource.com/chromium/src/+/HEAD/android_webview/docs/software_draw_deprecated.md).
 
 WebView's visual-state callback indicates readiness for a subsequent draw; it is not an on-screen pixel-health check. Attachment and visibility also matter. [WebView API documentation](https://developer.android.com/reference/android/webkit/WebView).
+
+## Phone follow-up and 0.1.5
+
+The tester supplied OPPO CPH2095, Android 12, WebView 156.0.8078.50. The initial report had rebuild disabled and zero rebuilds. After enabling it, the tester reported that the blank display stopped, with a brief white flash on reopening. This supports keeping the optional recovery while further phone testing continues; it does not establish the underlying graphics defect. The recorded Enter action was 6 (Done), which the existing service explicitly follows by hiding itself.
+
+0.1.5 sets the underlying IME window/decor background to the same dark color as the WebView and retains the previous keyboard height during replacement. This targets the light window exposed while replacing/loading the view. Rebuilding is now automatic, with no switch, and applies after any hide/reopen, including ordinary dismissal. The visual improvement requires confirmation on the affected phone.

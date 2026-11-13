@@ -10,10 +10,8 @@ final class DisplayOptions {
     private static SharedPreferences store(Context context){return context.getSharedPreferences("display_recovery",Context.MODE_PRIVATE);}
     static int generation(Context context){return store(context).getInt("generation",0);}
     static boolean simple(Context context){return store(context).getBoolean("simple",false);}
-    static boolean reconnect(Context context){return store(context).getBoolean("reconnect",false);}
     static void requestReset(Context context){store(context).edit().putInt("generation",generation(context)+1).apply();}
     static void setSimple(Context context,boolean enabled){store(context).edit().putBoolean("simple",enabled).putInt("generation",generation(context)+1).apply();}
-    static void setReconnect(Context context,boolean enabled){store(context).edit().putBoolean("reconnect",enabled).putInt("generation",generation(context)+1).apply();}
     static void nativeState(Context context,int width,int height,int scrollX,int scrollY,int visibility,int windowVisibility,boolean attached,boolean shown,boolean active,boolean paused,int draws,boolean drawHardware){
         String state="Size "+width+"×"+height+", scroll "+scrollX+","+scrollY+", visibility "+visibility+"/"+windowVisibility+", attached "+attached+", shown "+shown+", paused "+paused+", draw callbacks "+draws+", canvas hardware "+drawHardware;
         SharedPreferences.Editor edit=store(context).edit().putString("native_state",state);
@@ -43,13 +41,13 @@ final class DisplayOptions {
     }
     static String summary(Context context){
         SharedPreferences prefs=store(context);android.content.pm.PackageInfo webview=WebView.getCurrentWebViewPackage();
-        return "Display test 0.1.4\n"+Build.MANUFACTURER+" "+Build.MODEL+" · Android "+Build.VERSION.RELEASE
+        return "Keyboard 0.1.5\n"+Build.MANUFACTURER+" "+Build.MODEL+" · Android "+Build.VERSION.RELEASE
             +"\nWebView: "+(webview==null?"unavailable":webview.versionName)
             +"\nLast display event: "+prefs.getString("last_event","none")
             +"\nHardware drawing: "+prefs.getBoolean("hardware",false)
             +"\nRebuilds on reopen: "+prefs.getInt("rebuilt_on_reopen_count",0)
             +" · renderer restarts: "+prefs.getInt("renderer_exit_count",0)
-            +"\nSimple graphics: "+simple(context)+" · rebuild test: "+reconnect(context)
+            +"\nSimple graphics: "+simple(context)+" · automatic rebuild: enabled"
             +"\nLast native sample: "+prefs.getString("native_state","not sampled yet")
             +"\nLast shown native sample: "+prefs.getString("visible_native_state","not sampled yet")
             +"\nLast visible page sample: "+prefs.getString("visible_page_state","not sampled yet")

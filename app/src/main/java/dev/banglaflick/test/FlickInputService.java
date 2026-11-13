@@ -53,6 +53,12 @@ public final class FlickInputService extends InputMethodService {
 
     @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
     @Override public View onCreateInputView(){
+        // Match the window underneath the WebView while a replacement loads.
+        if(getWindow()!=null&&getWindow().getWindow()!=null){
+            getWindow().getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.rgb(41,41,41)));
+            getWindow().getWindow().getDecorView().setBackgroundColor(Color.rgb(41,41,41));
+        }
+        int previousHeight=browser==null?0:browser.getHeight();
         ready=false;session++;revision=0;if(browser!=null){browser.removeJavascriptInterface("AndroidKeyboard");if(browser.getParent() instanceof ViewGroup)((ViewGroup)browser.getParent()).removeView(browser);browser.destroy();}
         displayGeneration=DisplayOptions.generation(this);
         container=new FrameLayout(this);container.setBackgroundColor(Color.rgb(40,40,40));
@@ -106,7 +112,7 @@ public final class FlickInputService extends InputMethodService {
             }
         });
         WebView.setWebContentsDebuggingEnabled(false);
-        int initial=Math.round(350*getResources().getDisplayMetrics().density);
+        int initial=previousHeight>0?previousHeight:Math.round(350*getResources().getDisplayMetrics().density);
         container.addView(browser,new FrameLayout.LayoutParams(-1,initial));
         browser.loadUrl(ORIGIN+"keyboard.html");
         return container;
@@ -118,7 +124,7 @@ public final class FlickInputService extends InputMethodService {
     }
     private void resumeSurface(){
         if(browser==null)return;
-        boolean rebuildOnReopen=surfaceHidden&&DisplayOptions.reconnect(this);
+        boolean rebuildOnReopen=surfaceHidden;
         if(displayGeneration!=DisplayOptions.generation(this)||rebuildOnReopen){
             setInputView(onCreateInputView());
             if(rebuildOnReopen)DisplayOptions.record(this,"rebuilt_on_reopen",browser.isHardwareAccelerated());
@@ -260,7 +266,7 @@ public final class FlickInputService extends InputMethodService {
             if(!Double.isFinite(cssPixels))return;
             main.post(()->{if(browser==null)return;float density=getResources().getDisplayMetrics().density;int max=Math.round(getResources().getDisplayMetrics().heightPixels*.72f);int px=Math.max(Math.round(220*density),Math.min(max,Math.round((float)cssPixels*density)));ViewGroup.LayoutParams lp=browser.getLayoutParams();if(lp!=null&&lp.height!=px){lp.height=px;browser.setLayoutParams(lp);refreshDrawing();}});
         }
-        @JavascriptInterface public String version(){return "0.1.4-display-test";}
+        @JavascriptInterface public String version(){return "0.1.5";}
         @JavascriptInterface public String loadPreferences(){try{return preferenceWriter.submit(()->encryptedPreferences.load()).get(2500,TimeUnit.MILLISECONDS);}catch(Exception ignored){return "";}}
         @JavascriptInterface public boolean savePreferences(String json){try{return encryptedPreferences.save(json);}catch(Exception ignored){return false;}}
         @JavascriptInterface public void savePreferencesAsync(String json){

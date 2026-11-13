@@ -92,3 +92,7 @@ Source attribution and notices are bundled in `third_party/` and `app/src/main/a
 
 Implementation references: [Android input methods](https://developer.android.com/develop/ui/views/touch-and-input/creating-input-method), [InputConnection](https://developer.android.com/reference/android/view/inputmethod/InputConnection), [Play target API requirements](https://developer.android.com/google/play/requirements/target-sdk).
 
+
+### 0.1.5 display follow-up
+
+[Download 0.1.5](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.5.apk). The tester reports that enabling rebuild prevents the blank keyboard. This update matches the underlying keyboard window background to the dark loading surface and preserves height during replacement to reduce the reported white flash. Recovery is now automatic; its switch has been removed. It still rebuilds after ordinary close/reopen as well as Enter. Phone verification of the visual change is pending.
