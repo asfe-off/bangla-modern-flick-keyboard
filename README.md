@@ -1,42 +1,35 @@
 # Bangla Modern Flick Keyboard
 
-A compact Japanese-style nine-tile flick keyboard for Bangla and English. This repository contains the Android test app; an iOS app is not implemented yet.
+## [Download for Android — Version 0.1.5](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.5.apk)
 
-Original code: MIT. Bundled word/emoji/icon data retain their original licenses in `third_party/`.
+**Latest version · Android 8 or later · Free · Offline**
 
-An offline Android input-method service using the approved nine-tile Bengali/English flick interface. Android API 26+ (Android 8 or later), with a current Android System WebView. Compiled against API 36 and targeting API 36.
+A compact Japanese-style nine-tile flick keyboard for Bangla and English. Tap the middle letter or slide in one of four directions to choose another letter.
 
-## Download the Android test app
+### Install
 
-[**Download the APK for Android 8 or later**](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.3-public-test.apk)
+1. Tap **Download for Android** above on your phone, then open the downloaded APK.
+2. Allow installation from your browser or Files app if Android asks, then install.
+3. Open **Bangla Modern Flick Keyboard** → **Enable keyboard** → **Select keyboard**.
+4. Start typing in your chat app. Use **⚙** on the keyboard for Settings and Help.
 
-Open this link on your phone, download the APK, and open it from Downloads. If Android asks, allow your browser or Files app to install this app, then tap Install. Open **Bangla Modern Flick Keyboard**, tap **Enable keyboard**, then **Select keyboard**. The public test APK uses Android system sounds; it does not include Apple recordings.
+**Already installed?** Install this update over the existing app to keep your settings, favorites and personal words. Recovery is automatic; there is no rebuild switch to enable.
 
-## Install on your phone
+### What changed in 0.1.5
 
-### Optional blank-display investigation build — 0.1.4
+- Automatic recovery rebuilds the keyboard when it reopens, addressing the reported blank display after closing/Enter.
+- The loading background matches the dark keyboard, and its previous height is retained during replacement to reduce flashing.
+- The user confirmed this version works after a fresh install on an OPPO CPH2095 running Android 12 / ColorOS 12.1. Broader phone testing continues; the white-flash improvement is not separately confirmed yet.
 
-[Download the display test APK](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.4-display-test.apk). This is a diagnostic build, **not a confirmed fix**. Install over the existing test app to retain preferences. The regular download above remains 0.1.3.
+[Download checksum](downloads/SHA256SUMS.txt) · [Display investigation](DISPLAY-INVESTIGATION.md) · [Security and testing](SECURITY.md)
 
-The affected phone runs Android 12 / ColorOS 12.1. The user reproduced this sequence seven times: tap keyboard Enter, the keyboard closes, reopen it, and after some time its graphics disappear while typing still works. Restarting the host chat app restores the display. This makes IME/WebView visibility and drawing state a stronger lead than typing volume alone; the exact cause is unconfirmed.
+The app runs offline and has no Internet permission or account requirement. Android displays its standard keyboard warning when enabling an input method. This APK is signed with the project's existing development key; it is not a Google Play release. An iOS app is not implemented yet.
 
-Open the keyboard's launcher app and enable **Rebuild keyboard after close (test)**. Leave **Simpler graphics** off initially so only one variable changes. This option destroys/replaces the keyboard WebView on its next opening after it was hidden. It does not modify chat messages, force software rendering, or contain an Oppo-specific condition. It can increase reopening time. Both test options are off by default.
-
-If the display goes blank, open the keyboard's launcher app → **Display diagnostics → Copy report**, before using **Restore keyboard display** or restarting the chat app. The report contains the Android/model/WebView version, recent editor-action/window events, drawing counts, sizes, visibility, key-release totals and script-error counts. It excludes typed text, error messages and screenshots. Collection stays on the phone; nothing is uploaded automatically. Restore requests a fresh keyboard view the next time the keyboard opens.
-
-The investigation and remaining device checks are documented in [DISPLAY-INVESTIGATION.md](DISPLAY-INVESTIGATION.md). Browser tests cannot validate Android's compositor or IME window lifecycle.
-
-1. Transfer `Bangla-Modern-Flick-Keyboard-0.1.3-public-test.apk` to your phone and open it. Install over the previous test APK to retain your settings. If Android asks, allow this installer/browser to install this APK.
-2. Open **Bangla Modern Flick Keyboard** once. The nine-square launcher icon is a placeholder.
-3. Tap **Enable keyboard** and enable Bangla Modern Flick Keyboard in Android's keyboard settings. Android displays its standard input-method warning.
-4. Tap **Select keyboard** and select **Bangla Modern Flick Keyboard**.
-5. Type in the app's test box, then try a notes app and your chat app. Settings and Help are available from ⚙ in the keyboard; you do not need to revisit the launcher for normal use.
-
-Use your phone's keyboard-picker button, or **Settings → Switch keyboard**, to switch back. The app has no Internet permission, does not require an account, and does not request contacts, microphone or storage access. Vibration uses Android's normal VIBRATE permission.
+Original code: MIT. Bundled word/emoji/icon data retain their original licenses in `third_party/`. Public builds use Android system key sounds.
 
 ## Changes in 0.1.3
 
-Settings choices open inside the keyboard instead of using Android WebView dropdown dialogs. You can scroll from buttons and option rows. Emoji rows load as you scroll, and inserting an emoji updates history without rebuilding the entire picker. Host text refreshes preserve the current page and scroll position. Preference writes run off the immediate input path. Fast typing uses a single in-flight asynchronous editor request and coalesces queued changes; Send waits for all queued text to be committed. Android 12 and later use one bounded surrounding-text query instead of three separate queries when the editor supports it. System sound playback, opaque drawing, page scroll locking, compatibility colors and renderer recovery are updated; sound and the reported intermittent blank display still need confirmation on the affected phone.
+Settings choices open inside the keyboard instead of using Android WebView dropdown dialogs. You can scroll from buttons and option rows. Emoji rows load as you scroll, and inserting an emoji updates history without rebuilding the entire picker. Host text refreshes preserve the current page and scroll position. Preference writes run off the immediate input path. Fast typing uses a single in-flight asynchronous editor request and coalesces queued changes; Send waits for all queued text to be committed. Android 12 and later use one bounded surrounding-text query instead of three separate queries when the editor supports it. System sound playback, opaque drawing, page scroll locking, compatibility colors and renderer recovery are updated; these were earlier improvements; automatic reopen recovery was added in 0.1.5.
 
 Slide from a main or symbol tile to show the selected letter in an enlarged, pointed side bubble. The bubble appears on the left, right, top or bottom, and the original tile remains the anchor. Release to enter the letter; sliding back to the centre restores the middle choice. The preview follows the directional-guide behavior described in [SoftBank's flick-input manual](https://www.softbank.jp/mobile/support/manual/smartphone/arrows-u/detail/32360/); the Bangla mappings are this project's design.
 
@@ -60,7 +53,7 @@ The APK is compiled, aligned and signed with a **local test key**. It is install
 
 Verified here: Java compilation, resources/manifest packaging, APK signature, 5,018 editor-delta cases, and the packaged UI against a simulated Android editor (conjuncts, selections, deletion, Undo/Redo, cycling, emoji, numeric and password fields, native actions, cleanup, and compact phone sizes).
 
-The user reported that the previous 0.1.1 build works on their phone. No Android device was connected for this audit, so the updated 0.1.3 build and its Android Keystore storage have **not been exercised on a physical phone by these automated checks**. Actual WebView/IME lifecycle, cursor movement in third-party chat apps, app action buttons, rotation, navigation-bar insets and sound latency still need broader phone testing.
+The user confirmed 0.1.5 works after a fresh install on the affected Oppo phone. No Android device was connected to the development environment, so automated checks do not validate Android's real graphics, IME lifecycle or Keystore. Broader testing of cursor movement, editor actions, rotation, navigation insets and sound latency remains necessary.
 
 This is a WebView-backed InputMethodService, not a browser page shown over another app. It communicates with the active editor through Android InputConnection. Host snapshots are checked before replacement, and edits from a stale field/session are rejected. If the app changes text externally, the keyboard refreshes its context. Context and Undo are cleared when the keyboard is hidden or the field changes. Huge unreadable selections are rejected rather than replaced blindly.
 
@@ -93,6 +86,3 @@ Source attribution and notices are bundled in `third_party/` and `app/src/main/a
 Implementation references: [Android input methods](https://developer.android.com/develop/ui/views/touch-and-input/creating-input-method), [InputConnection](https://developer.android.com/reference/android/view/inputmethod/InputConnection), [Play target API requirements](https://developer.android.com/google/play/requirements/target-sdk).
 
 
-### 0.1.5 display follow-up
-
-[Download 0.1.5](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.5.apk). The tester reports that enabling rebuild prevents the blank keyboard. This update matches the underlying keyboard window background to the dark loading surface and preserves height during replacement to reduce the reported white flash. Recovery is now automatic; its switch has been removed. It still rebuilds after ordinary close/reopen as well as Enter. Phone verification of the visual change is pending.
