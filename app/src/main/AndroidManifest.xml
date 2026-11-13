@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <application android:label="Bangla Modern Flick Keyboard" android:icon="@drawable/ic_launcher"
         android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules"
-        android:debuggable="false" android:usesCleartextTraffic="false" android:supportsRtl="true"
+        android:debuggable="false" android:hardwareAccelerated="true" android:usesCleartextTraffic="false" android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".SetupActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>

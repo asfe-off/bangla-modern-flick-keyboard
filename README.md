@@ -14,6 +14,18 @@ Open this link on your phone, download the APK, and open it from Downloads. If A
 
 ## Install on your phone
 
+### Optional blank-display investigation build — 0.1.4
+
+[Download the display test APK](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.4-display-test.apk). This is a diagnostic build, **not a confirmed fix**. Install over the existing test app to retain preferences. The regular download above remains 0.1.3.
+
+The affected phone runs Android 12 / ColorOS 12.1. The user reproduced this sequence seven times: tap keyboard Enter, the keyboard closes, reopen it, and after some time its graphics disappear while typing still works. Restarting the host chat app restores the display. This makes IME/WebView visibility and drawing state a stronger lead than typing volume alone; the exact cause is unconfirmed.
+
+Open the keyboard's launcher app and enable **Rebuild keyboard after close (test)**. Leave **Simpler graphics** off initially so only one variable changes. This option destroys/replaces the keyboard WebView on its next opening after it was hidden. It does not modify chat messages, force software rendering, or contain an Oppo-specific condition. It can increase reopening time. Both test options are off by default.
+
+If the display goes blank, open the keyboard's launcher app → **Display diagnostics → Copy report**, before using **Restore keyboard display** or restarting the chat app. The report contains the Android/model/WebView version, recent editor-action/window events, drawing counts, sizes, visibility, key-release totals and script-error counts. It excludes typed text, error messages and screenshots. Collection stays on the phone; nothing is uploaded automatically. Restore requests a fresh keyboard view the next time the keyboard opens.
+
+The investigation and remaining device checks are documented in [DISPLAY-INVESTIGATION.md](DISPLAY-INVESTIGATION.md). Browser tests cannot validate Android's compositor or IME window lifecycle.
+
 1. Transfer `Bangla-Modern-Flick-Keyboard-0.1.3-public-test.apk` to your phone and open it. Install over the previous test APK to retain your settings. If Android asks, allow this installer/browser to install this APK.
 2. Open **Bangla Modern Flick Keyboard** once. The nine-square launcher icon is a placeholder.
 3. Tap **Enable keyboard** and enable Bangla Modern Flick Keyboard in Android's keyboard settings. Android displays its standard input-method warning.

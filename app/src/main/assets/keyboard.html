@@ -229,6 +229,11 @@ html,body { margin:0; padding:0; background:#292929; overflow:hidden; -webkit-te
 #bangla-nine button { -webkit-tap-highlight-color:transparent; }
 #bangla-nine button:focus-visible { outline-color:var(--bn-text); }
 #bangla-nine .bn-key:active { background:var(--bn-key); }
+/* Display-compatibility test: avoid effect-backed compositing layers. */
+#bangla-nine .bn-simple-graphics button { box-shadow:none; }
+#bangla-nine .bn-simple-graphics .bn-flick-guide { filter:none; }
+#bangla-nine .bn-simple-graphics .bn-flick-guide span { border:1px solid #888; }
+#bangla-nine .bn-simple-graphics input[type=checkbox]::before { transition:none; }
 @media(orientation:landscape) {
  #bangla-nine .bn-suggestion-row button { min-height:32px; }
  #bangla-nine .bn-numbers button { min-height:30px; }

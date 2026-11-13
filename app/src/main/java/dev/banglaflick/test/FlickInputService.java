@@ -33,6 +33,20 @@ public final class FlickInputService extends InputMethodService {
     private EncryptedPreferences encryptedPreferences;
     private final ExecutorService preferenceWriter=Executors.newSingleThreadExecutor();
     private long visualState=0;
+    private int displayGeneration;
+    private boolean surfaceHidden=true;
+    private int drawCallbacks=0;
+    private boolean lastCanvasHardware=false;
+    private long lastDisplaySample=0;
+    private final Runnable sampleDisplay=()->{
+        if(browser==null)return;WebView view=browser;
+        boolean sampledActive=active;
+        DisplayOptions.nativeState(this,view.getWidth(),view.getHeight(),view.getScrollX(),view.getScrollY(),view.getVisibility(),view.getWindowVisibility(),view.isAttachedToWindow(),view.isShown(),sampledActive,false,drawCallbacks,lastCanvasHardware);
+        if(ready)view.evaluateJavascript("JSON.stringify(window.BanglaNative&&window.BanglaNative.displayStatus())",raw->{
+            if(browser!=view||raw==null||raw.length()>2048)return;
+            try{Object decoded=new org.json.JSONTokener(raw).nextValue();if(decoded instanceof String)DisplayOptions.pageState(this,new JSONObject((String)decoded),sampledActive&&active);}catch(Exception ignored){}
+        });
+    };
     private final Runnable refresh=()->{if(active){captureEditor();publish(true);}};
     @Override public boolean onEvaluateFullscreenMode(){return false;}
     @Override public boolean onEvaluateInputViewShown(){return true;}
@@ -40,8 +54,22 @@ public final class FlickInputService extends InputMethodService {
     @SuppressLint({"SetJavaScriptEnabled","AddJavascriptInterface"})
     @Override public View onCreateInputView(){
         ready=false;session++;revision=0;if(browser!=null){browser.removeJavascriptInterface("AndroidKeyboard");if(browser.getParent() instanceof ViewGroup)((ViewGroup)browser.getParent()).removeView(browser);browser.destroy();}
+        displayGeneration=DisplayOptions.generation(this);
         container=new FrameLayout(this);container.setBackgroundColor(Color.rgb(40,40,40));
-        browser=new WebView(this);browser.setBackgroundColor(Color.rgb(41,41,41));
+        drawCallbacks=0;
+        browser=new WebView(this){
+            @Override protected void onDraw(android.graphics.Canvas canvas){drawCallbacks++;lastCanvasHardware=canvas.isHardwareAccelerated();super.onDraw(canvas);}
+            @Override protected void onAttachedToWindow(){super.onAttachedToWindow();if(browser==this)DisplayOptions.record(FlickInputService.this,"view_attached",isHardwareAccelerated());}
+            @Override protected void onDetachedFromWindow(){if(browser==this)DisplayOptions.record(FlickInputService.this,"view_detached",isHardwareAccelerated());super.onDetachedFromWindow();}
+            @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);if(browser==this)DisplayOptions.record(FlickInputService.this,"view_window_"+visibility,isHardwareAccelerated());}
+            @Override public boolean onTouchEvent(MotionEvent event){
+                boolean handled=super.onTouchEvent(event);
+                if(event.getActionMasked()==MotionEvent.ACTION_UP&&SystemClock.uptimeMillis()-lastDisplaySample>1500){lastDisplaySample=SystemClock.uptimeMillis();main.removeCallbacks(sampleDisplay);main.postDelayed(sampleDisplay,100);}
+                return handled;
+            }
+        };browser.setBackgroundColor(Color.rgb(41,41,41));
+        browser.setLayerType(View.LAYER_TYPE_NONE,null);
+        browser.setHorizontalScrollBarEnabled(false);
         browser.setOverScrollMode(View.OVER_SCROLL_NEVER);browser.setVerticalScrollBarEnabled(false);
         WebSettings settings=browser.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setJavaScriptCanOpenWindowsAutomatically(false);
@@ -66,11 +94,15 @@ public final class FlickInputService extends InputMethodService {
                 }catch(Exception ignored){return emptyResponse();}
             }
             @Override public void onPageFinished(WebView view,String url){
-                if(!url.equals(ORIGIN+"keyboard.html"))return;
+                if(view!=browser||!url.equals(ORIGIN+"keyboard.html"))return;
                 ready=true;if(active)captureEditor();publish(true);refreshDrawing();
+                DisplayOptions.record(FlickInputService.this,"page_ready",view.isHardwareAccelerated());
+                main.removeCallbacks(sampleDisplay);main.postDelayed(sampleDisplay,200);
             }
             @Override public boolean onRenderProcessGone(WebView view,RenderProcessGoneDetail detail){
-                ready=false;main.post(()->{if(browser==view)setInputView(onCreateInputView());});return true;
+                if(view!=browser)return true;
+                ready=false;DisplayOptions.record(FlickInputService.this,"renderer_exit",view.isHardwareAccelerated());
+                main.post(()->{if(browser==view){setInputView(onCreateInputView());if(isInputViewShown())resumeSurface();}});return true;
             }
         });
         WebView.setWebContentsDebuggingEnabled(false);
@@ -84,9 +116,29 @@ public final class FlickInputService extends InputMethodService {
         if(browser==null)return;WebView view=browser;view.scrollTo(0,0);view.requestLayout();view.invalidate();
         view.postVisualStateCallback(++visualState,new WebView.VisualStateCallback(){@Override public void onComplete(long id){if(browser==view)view.postInvalidateOnAnimation();}});
     }
-    @Override public void onWindowShown(){super.onWindowShown();refreshDrawing();}
+    private void resumeSurface(){
+        if(browser==null)return;
+        boolean rebuildOnReopen=surfaceHidden&&DisplayOptions.reconnect(this);
+        if(displayGeneration!=DisplayOptions.generation(this)||rebuildOnReopen){
+            setInputView(onCreateInputView());
+            if(rebuildOnReopen)DisplayOptions.record(this,"rebuilt_on_reopen",browser.isHardwareAccelerated());
+        }
+        browser.onResume();
+        surfaceHidden=false;
+        main.removeCallbacks(sampleDisplay);main.postDelayed(sampleDisplay,200);
+        refreshDrawing();
+    }
+    private void pauseSurface(){
+        main.removeCallbacks(sampleDisplay);sampleDisplay.run();
+        surfaceHidden=true;
+        // Keep the published lifecycle behavior while collecting evidence. No
+        // new onPause policy or global rendering workaround is enabled here.
+    }
+    @Override public void onWindowShown(){super.onWindowShown();resumeSurface();DisplayOptions.record(this,"window_shown",browser!=null&&browser.isHardwareAccelerated());}
+    @Override public void onWindowHidden(){pauseSurface();DisplayOptions.record(this,"window_hidden",browser!=null&&browser.isHardwareAccelerated());super.onWindowHidden();}
     @Override public void onStartInput(EditorInfo info,boolean restarting){
         super.onStartInput(info,restarting);main.removeCallbacks(refresh);active=true;session++;revision=0;shadow="";
+        DisplayOptions.record(this,"input_start",browser!=null&&browser.isHardwareAccelerated());
         absoluteStart=Math.max(0,info.initialSelStart);absoluteEnd=Math.max(absoluteStart,info.initialSelEnd);
         int cls=info.inputType&InputType.TYPE_MASK_CLASS,var=info.inputType&InputType.TYPE_MASK_VARIATION;
         secure=(cls==InputType.TYPE_CLASS_TEXT&&(var==InputType.TYPE_TEXT_VARIATION_PASSWORD||var==InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD||var==InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD))||(cls==InputType.TYPE_CLASS_NUMBER&&var==InputType.TYPE_NUMBER_VARIATION_PASSWORD);
@@ -95,12 +147,12 @@ public final class FlickInputService extends InputMethodService {
         kind=cls==InputType.TYPE_CLASS_NUMBER?"number":cls==InputType.TYPE_CLASS_PHONE?"phone":secure?"password":"text";
         captureEditor();publish(true);
     }
-    @Override public void onStartInputView(EditorInfo info,boolean restarting){super.onStartInputView(info,restarting);active=true;if(browser!=null){browser.onResume();captureEditor();publish(true);refreshDrawing();}}
+    @Override public void onStartInputView(EditorInfo info,boolean restarting){super.onStartInputView(info,restarting);active=true;DisplayOptions.record(this,"input_view_start",browser!=null&&browser.isHardwareAccelerated());if(browser!=null){resumeSurface();captureEditor();publish(true);}}
     @Override public void onFinishInputView(boolean finishingInput){
-        super.onFinishInputView(finishingInput);active=false;session++;revision=0;shadow="";selectionStart=selectionEnd=0;main.removeCallbacks(refresh);publish(true);
+        DisplayOptions.record(this,"input_view_finish",browser!=null&&browser.isHardwareAccelerated());super.onFinishInputView(finishingInput);active=false;session++;revision=0;shadow="";selectionStart=selectionEnd=0;main.removeCallbacks(refresh);publish(true);pauseSurface();
     }
     @Override public void onFinishInput(){
-        super.onFinishInput();active=false;session++;revision=0;shadow="";selectionStart=selectionEnd=offset=0;main.removeCallbacks(refresh);publish(true);
+        DisplayOptions.record(this,"input_finish",browser!=null&&browser.isHardwareAccelerated());super.onFinishInput();active=false;session++;revision=0;shadow="";selectionStart=selectionEnd=offset=0;main.removeCallbacks(refresh);publish(true);
     }
     @Override public void onUpdateSelection(int oldStart,int oldEnd,int newStart,int newEnd,int candidatesStart,int candidatesEnd){
         super.onUpdateSelection(oldStart,oldEnd,newStart,newEnd,candidatesStart,candidatesEnd);
@@ -137,6 +189,7 @@ public final class FlickInputService extends InputMethodService {
             json.put("ok",true).put("session",session).put("revision",revision).put("text",shadow).put("start",selectionStart).put("end",selectionEnd).put("reset",reset)
                 .put("secure",secure).put("noLearning",noLearning).put("kind",kind).put("active",active)
                 .put("readable",editorReadable)
+                .put("simpleGraphics",DisplayOptions.simple(this))
                 .put("maxHeight",Math.round(getResources().getDisplayMetrics().heightPixels*.72f/getResources().getDisplayMetrics().density))
                 .put("action",action==EditorInfo.IME_ACTION_SEND?"send":action==EditorInfo.IME_ACTION_SEARCH?"search":action==EditorInfo.IME_ACTION_DONE?"done":action==EditorInfo.IME_ACTION_NEXT?"next":action==EditorInfo.IME_ACTION_GO?"go":"newline");
         }catch(Exception ignored){}return json;
@@ -176,10 +229,12 @@ public final class FlickInputService extends InputMethodService {
         InputConnection ic=getCurrentInputConnection();EditorInfo info=getCurrentInputEditorInfo();if(!active||ic==null||info==null)return "false";
         if("delete".equals(requested)){boolean deleted=ic.deleteSurroundingTextInCodePoints(1,0);captureEditor();publish(true);return Boolean.toString(deleted);}
         int code=info.actionId!=0&&info.actionLabel!=null?info.actionId:info.imeOptions&EditorInfo.IME_MASK_ACTION;
+        DisplayOptions.record(this,"editor_action_"+code,browser!=null&&browser.isHardwareAccelerated());
         boolean performed;
         if(code==EditorInfo.IME_ACTION_NONE||code==EditorInfo.IME_ACTION_UNSPECIFIED||(info.imeOptions&EditorInfo.IME_FLAG_NO_ENTER_ACTION)!=0){performed=ic.commitText("\n",1);}
         else performed=ic.performEditorAction(code);
         if(performed&&code==EditorInfo.IME_ACTION_DONE)requestHideSelf(0);
+        DisplayOptions.record(this,performed?"editor_action_returned_true":"editor_action_returned_false",browser!=null&&browser.isHardwareAccelerated());
         main.removeCallbacks(refresh);main.postDelayed(refresh,60);return Boolean.toString(performed);
     }
     private String onMain(Callable<String> callable){
@@ -205,7 +260,7 @@ public final class FlickInputService extends InputMethodService {
             if(!Double.isFinite(cssPixels))return;
             main.post(()->{if(browser==null)return;float density=getResources().getDisplayMetrics().density;int max=Math.round(getResources().getDisplayMetrics().heightPixels*.72f);int px=Math.max(Math.round(220*density),Math.min(max,Math.round((float)cssPixels*density)));ViewGroup.LayoutParams lp=browser.getLayoutParams();if(lp!=null&&lp.height!=px){lp.height=px;browser.setLayoutParams(lp);refreshDrawing();}});
         }
-        @JavascriptInterface public String version(){return "0.1.3-test";}
+        @JavascriptInterface public String version(){return "0.1.4-display-test";}
         @JavascriptInterface public String loadPreferences(){try{return preferenceWriter.submit(()->encryptedPreferences.load()).get(2500,TimeUnit.MILLISECONDS);}catch(Exception ignored){return "";}}
         @JavascriptInterface public boolean savePreferences(String json){try{return encryptedPreferences.save(json);}catch(Exception ignored){return false;}}
         @JavascriptInterface public void savePreferencesAsync(String json){

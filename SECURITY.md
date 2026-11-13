@@ -1,6 +1,14 @@
-# Security and testing status — 0.1.3-test
+# Security and testing status — 0.1.4 display investigation
 
 Reviewed 13 November 2026. This is a developer hardening pass and automated test report, not an independent security audit or a guarantee that no vulnerabilities remain. The previous build worked on the user's phone; this updated build has not yet been tested on a connected Android device.
+
+## 0.1.4 diagnostic data
+
+The random blank display remains unresolved. This optional build adds local diagnostic metadata, a manual display reset, optional simpler CSS graphics and an optional fresh WebView after closing/reopening the keyboard. Both options default off. Hardware acceleration remains enabled. No new permissions, network access, remote content, screenshots or typed-text logging are introduced. This is not a Play release.
+
+Private diagnostic preferences contain device/WebView versions, at most 32 recent fixed-name lifecycle/action events with elapsed timestamps, counters, and the latest numeric/boolean geometry and visibility samples. Numeric action IDs can appear; chat text, app package names, key values, dictionary contents and exception messages are excluded. These non-content diagnostics are separate from encrypted typing preferences; they are not encrypted. App backup remains excluded. Copying a report is an explicit user action. The last active visible sample is retained when the keyboard hides. The launcher can request a new keyboard view without clearing saved preferences or host messages.
+
+Added checks: 1,200 real browser pointer releases (including flicks), stable collected DOM/listener counts, single outstanding asynchronous edit, feedback dispatch and gesture cleanup; 60 simulated Send/inactive/reopen cycles with delayed acknowledgements; diagnostics type/field/content exclusions and injected hidden-layout/error conditions. Two versions were also exercised through 1,800 page/session transitions each. These are desktop Edge tests with simulated editors; they cannot establish a fix for Android GPU/IME failures. Rebuilding the view on reopen also needs physical-device latency and lifecycle tests. Full investigation: [DISPLAY-INVESTIGATION.md](DISPLAY-INVESTIGATION.md).
 
 ## 0.1.3 follow-up
 

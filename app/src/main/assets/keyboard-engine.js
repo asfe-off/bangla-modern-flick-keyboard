@@ -2,6 +2,9 @@
 
 (() => {
   const root=document.getElementById('bangla-nine');
+  let displayScriptErrors=0,displayPromiseErrors=0,displayKeyReleases=0;
+  window.addEventListener('error',()=>displayScriptErrors++);
+  window.addEventListener('unhandledrejection',()=>displayPromiseErrors++);
   const output=root.querySelector('#bn-output'), status=root.querySelector('#bn-status');
   const grid=root.querySelector('#bn-grid'), symbols=root.querySelector('#bn-symbols');
   const space=root.querySelector('#bn-space'), more=root.querySelector('#bn-more'), join=root.querySelector('#bn-join');
@@ -483,6 +486,7 @@
     function playSystemClick(button){AndroidKeyboard.sound(button.id==='bn-delete'?'delete':button.classList.contains('bn-key')||button.closest('#bn-numbers')?'click':'modifier');}
     root.addEventListener('pointerup',event=>{
       if(!event.target.closest('button'))return;
+      displayKeyReleases++;
       if(preferences.vibration)AndroidKeyboard.haptic();
       if(preferences.sound)playSystemClick(event.target.closest('button'));
     });
@@ -650,8 +654,9 @@
     if(nativePending){nativePending=null;nativeDeferredAction=null;}
     const previous=nativeMirror;
     const contentChanged=newSession||output.value!==state.text||output.selectionStart!==state.start||output.selectionEnd!==state.end;
-    const layoutChanged=newSession||!previous||previous.kind!==state.kind||previous.secure!==state.secure||previous.maxHeight!==state.maxHeight;
+    const layoutChanged=newSession||!previous||previous.kind!==state.kind||previous.secure!==state.secure||previous.maxHeight!==state.maxHeight||previous.simpleGraphics!==state.simpleGraphics;
     nativeMirror={...state};nativeActive=!!state.active&&state.readable!==false;nativeSecure=!!state.secure;nativeNoLearning=!!state.noLearning;nativeAction=state.action||'newline';nativeNumeric=state.kind==='number'||state.kind==='phone';
+    root.querySelector('.bn-phone').classList.toggle('bn-simple-graphics',state.simpleGraphics===true);
     output.value=state.text;output.setSelectionRange(Math.min(state.start,state.text.length),Math.min(state.end,state.text.length));
     if(contentChanged){history.length=0;redoSnapshot=null;lastChoice=null;}
     if(newSession){
@@ -688,7 +693,12 @@
     cancelAnimationFrame(heightFrame);heightFrame=requestAnimationFrame(()=>{const height=Math.ceil(root.getBoundingClientRect().height);if(height!==lastReportedHeight){lastReportedHeight=height;AndroidKeyboard.height(height);}});
   }
   new ResizeObserver(reportHeight).observe(root);
-  window.BanglaNative={receive:receiveHost,acknowledge:acknowledgeEdit,preferenceSaveFailed(){status.textContent='Could not save settings';if(activePanel==='settings'){let note=panel.querySelector('.bn-save-error');if(!note){note=document.createElement('p');note.className='bn-save-error';panel.prepend(note);}note.textContent='Could not save settings. Please try again.';}}};
+  function displayStatus(){
+    const box=root.getBoundingClientRect(),style=getComputedStyle(root);
+    const visibleButtons=[...root.querySelectorAll('button')].filter(button=>{const b=button.getBoundingClientRect(),s=getComputedStyle(button);return b.width>0&&b.height>0&&b.bottom>0&&b.top<innerHeight&&s.visibility==='visible'&&s.display!=='none'&&Number(s.opacity)>0;}).length;
+    return {width:Math.round(box.width),height:Math.round(box.height),top:Math.round(box.top),left:Math.round(box.left),scrollX:scrollX,scrollY:scrollY,viewportHeight:innerHeight,visibleButtons,documentHidden:document.hidden,rootVisible:style.visibility==='visible'&&style.display!=='none'&&Number(style.opacity)>0,scriptErrors:displayScriptErrors,promiseErrors:displayPromiseErrors,viewportOffsetTop:visualViewport?.offsetTop??0,visualHeight:Math.round(visualViewport?.height??innerHeight),keyReleases:displayKeyReleases,activeGestures:activeGestureTargets.size,undoEntries:history.length,domNodes:root.querySelectorAll('*').length};
+  }
+  window.BanglaNative={receive:receiveHost,acknowledge:acknowledgeEdit,displayStatus,preferenceSaveFailed(){status.textContent='Could not save settings';if(activePanel==='settings'){let note=panel.querySelector('.bn-save-error');if(!note){note=document.createElement('p');note.className='bn-save-error';panel.prepend(note);}note.textContent='Could not save settings. Please try again.';}}};
   window.addEventListener('resize',()=>{reportHeight();scheduleEmojiViewport();});
   matchMedia('(prefers-color-scheme:dark)').addEventListener('change',applyAppearance);
 
