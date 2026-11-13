@@ -6,9 +6,15 @@ Original code: MIT. Bundled word/emoji/icon data retain their original licenses 
 
 An offline Android input-method service using the approved nine-tile Bengali/English flick interface. Android API 26+ (Android 8 or later), with a current Android System WebView. Compiled against API 36 and targeting API 36.
 
+## Download the Android test app
+
+[**Download the APK for Android 8 or later**](https://raw.githubusercontent.com/asfe-off/bangla-modern-flick-keyboard/main/downloads/Bangla-Modern-Flick-Keyboard-0.1.2-public-test.apk)
+
+Open this link on your phone, download the APK, and open it from Downloads. If Android asks, allow your browser or Files app to install this app, then tap Install. Open **Bangla Modern Flick Keyboard**, tap **Enable keyboard**, then **Select keyboard**. The public test APK uses Android system sounds; it does not include Apple recordings.
+
 ## Install on your phone
 
-1. Transfer `Bangla-Modern-Flick-Keyboard-0.1.2-test.apk` to your phone and open it. Install over the previous test APK to retain your settings. If Android asks, allow this installer/browser to install this APK.
+1. Transfer `Bangla-Modern-Flick-Keyboard-0.1.2-public-test.apk` to your phone and open it. Install over the previous test APK to retain your settings. If Android asks, allow this installer/browser to install this APK.
 2. Open **Bangla Modern Flick Keyboard** once. The nine-square launcher icon is a placeholder.
 3. Tap **Enable keyboard** and enable Bangla Modern Flick Keyboard in Android's keyboard settings. Android displays its standard input-method warning.
 4. Tap **Select keyboard** and select **Bangla Modern Flick Keyboard**.
